@@ -29,7 +29,6 @@ type EyeBallProps = {
 type PupilProps = {
   size: number;
   offset: Point;
-  color?: string;
 };
 
 const DEFAULT_PASSWORD_ERROR = "密码不正确，请重试。";
@@ -145,7 +144,6 @@ function EyeBall({
 function Pupil({
   size,
   offset,
-  color = "#2D2D2D",
 }: PupilProps) {
   return (
     <div
@@ -153,7 +151,7 @@ function Pupil({
       style={{
         width: `${size}px`,
         height: `${size}px`,
-        backgroundColor: color,
+        backgroundColor: "#2D2D2D",
         transform: `translate(${offset.x}px, ${offset.y}px)`,
       }}
     />
@@ -538,7 +536,7 @@ export default function Home() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="password" className={`text-base font-medium sm:text-sm ${isDarkMode ? "text-white" : ""}`}>
                   密码

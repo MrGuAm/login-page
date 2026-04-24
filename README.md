@@ -1,17 +1,17 @@
-# Champion Login Page
+# Champion 登录页
 
-An animated Next.js login page for Champion's Blog. The interface pairs a clean password form with playful character animations, dark mode support, and a simple password gate powered by an environment variable.
+这是一个为 Champion's Blog 准备的动画登录页。页面使用简洁的密码表单，搭配会跟随鼠标和输入状态变化的角色动画，并支持浅色/深色模式。
 
-## Features
+## 功能特点
 
-- Animated characters that react to pointer movement and password input
-- Light and dark theme support
-- Password-only login flow
-- Cookie-based authenticated state
-- Responsive layout for desktop and mobile
-- Built with Next.js, React, Tailwind CSS, Base UI, shadcn/ui, and lucide-react
+- 角色动画会响应鼠标移动和密码输入
+- 支持浅色模式和深色模式
+- 使用密码完成登录
+- 通过 cookie 保存已登录状态
+- 适配桌面端和移动端
+- 基于 Next.js、React、Tailwind CSS、Base UI、shadcn/ui 和 lucide-react 构建
 
-## Tech Stack
+## 技术栈
 
 - Next.js 16
 - React 19
@@ -21,29 +21,29 @@ An animated Next.js login page for Champion's Blog. The interface pairs a clean 
 - shadcn/ui
 - lucide-react
 
-## Getting Started
+## 本地运行
 
-Install dependencies:
+安装依赖：
 
 ```bash
 npm install
 ```
 
-Create a local environment file named `.env.local`:
+创建本地环境变量文件 `.env.local`：
 
 ```bash
 NEXT_PUBLIC_PASSWORD=your-password
 ```
 
-Start the development server:
+启动开发服务器：
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+在浏览器中打开 [http://localhost:3000](http://localhost:3000)。
 
-## Available Scripts
+## 可用脚本
 
 ```bash
 npm run dev
@@ -52,20 +52,20 @@ npm run start
 npm run lint
 ```
 
-## Authentication Flow
+## 登录流程
 
-The login form compares the entered password with `NEXT_PUBLIC_PASSWORD`. When the password matches, the app writes an `authenticated=true` cookie and redirects to `/write`.
+登录表单会将输入的密码与 `NEXT_PUBLIC_PASSWORD` 进行比较。密码正确时，应用会写入 `authenticated=true` cookie，并跳转到 `/write`。
 
-## Project Structure
+## 项目结构
 
 ```text
-src/app/layout.tsx       App metadata and global layout
-src/app/page.tsx         Animated login page
-src/app/globals.css      Tailwind theme and global styles
-src/components/ui        Reusable UI components
-src/lib/utils.ts         Utility helpers
+src/app/layout.tsx       应用元信息和全局布局
+src/app/page.tsx         动画登录页面
+src/app/globals.css      Tailwind 主题和全局样式
+src/components/ui        可复用 UI 组件
+src/lib/utils.ts         工具函数
 ```
 
-## Deployment
+## 部署
 
-The project can be deployed to Vercel or any platform that supports Next.js. Add `NEXT_PUBLIC_PASSWORD` to the deployment environment variables before publishing.
+项目可以部署到 Vercel 或任何支持 Next.js 的平台。发布前请在部署平台中配置 `NEXT_PUBLIC_PASSWORD` 环境变量。

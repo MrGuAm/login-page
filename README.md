@@ -32,7 +32,7 @@ npm install
 创建本地环境变量文件 `.env.local`：
 
 ```bash
-NEXT_PUBLIC_PASSWORD=your-password
+Pwd=your-password
 ```
 
 启动开发服务器：
@@ -54,7 +54,7 @@ npm run lint
 
 ## 登录流程
 
-登录表单会将输入的密码与 `NEXT_PUBLIC_PASSWORD` 进行比较。密码正确时，页面会显示登录成功状态；退出登录会清空当前页面状态，不写入 cookie，也不会跳转到其他路由。
+登录表单会将输入的密码发送到服务端，与 `Pwd` 环境变量进行比较。密码正确时，页面会显示登录成功状态；退出登录会清空当前页面状态，不写入 cookie，也不会跳转到其他路由。
 
 ## 项目结构
 
@@ -68,4 +68,4 @@ src/lib/utils.ts         工具函数
 
 ## 部署
 
-项目可以部署到 Vercel 或任何支持 Next.js 的平台。发布前请在部署平台中配置 `NEXT_PUBLIC_PASSWORD` 环境变量。
+项目可以部署到 Vercel 或任何支持 Next.js 的平台。发布前请在部署平台中配置 `Pwd` 环境变量。

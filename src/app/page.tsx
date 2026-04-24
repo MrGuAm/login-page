@@ -282,23 +282,29 @@ export default function Home() {
     }, 800);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!process.env.NEXT_PUBLIC_PASSWORD) {
-      setIsAuthenticated(false);
-      setError("请先配置 NEXT_PUBLIC_PASSWORD。");
-      return;
-    }
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ password }),
+    });
 
-    if (password === process.env.NEXT_PUBLIC_PASSWORD) {
+    const result = (await response.json().catch(() => null)) as
+      | { authenticated?: boolean; error?: string }
+      | null;
+
+    if (response.ok && result?.authenticated) {
       setError("");
       setIsAuthenticated(true);
       return;
     }
 
     setIsAuthenticated(false);
-    setError(DEFAULT_PASSWORD_ERROR);
+    setError(result?.error ?? DEFAULT_PASSWORD_ERROR);
   };
 
   const handleLogout = () => {
@@ -308,8 +314,18 @@ export default function Home() {
   };
 
   return (
-    <main className={`min-h-screen ${isDarkMode ? "bg-black text-white" : "bg-background text-foreground"}`}>
-      <div className="grid min-h-screen lg:grid-cols-2">
+    <main className={`relative min-h-[100svh] ${isDarkMode ? "bg-black text-white" : "bg-background text-foreground"}`}>
+      <button
+        type="button"
+        aria-label={isDarkMode ? "切换到浅色模式" : "切换到深色模式"}
+        onClick={() => setThemeOverride((value) => !(value ?? systemPrefersDark))}
+        className={`fixed right-4 top-4 z-50 flex size-10 items-center justify-center rounded-lg transition-colors sm:right-6 sm:top-6 ${
+          isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-primary/10 text-primary hover:bg-primary/20"
+        }`}
+      >
+        {isDarkMode ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
+      </button>
+      <div className="grid min-h-[100svh] lg:grid-cols-2">
         <section
           className={`relative hidden flex-col justify-between overflow-hidden p-12 lg:flex ${
             isDarkMode
@@ -502,40 +518,29 @@ export default function Home() {
           </p>
         </section>
 
-        <section className={`flex min-h-screen items-center justify-center p-8 ${isDarkMode ? "bg-black" : "bg-background"}`}>
+        <section className={`flex min-h-[100svh] items-center justify-center px-5 py-20 sm:p-8 ${isDarkMode ? "bg-black" : "bg-background"}`}>
           <div className="w-full max-w-[420px]">
-            <div className="mb-12 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-lg font-semibold lg:hidden">
+            <div className="mb-8 flex items-center justify-center sm:mb-12 lg:hidden">
+              <div className="flex items-center gap-2 text-base font-semibold sm:text-lg">
                 <div className={`flex size-8 items-center justify-center rounded-lg ${isDarkMode ? "bg-white/10" : "bg-primary/10"}`}>
                   <Sparkles className={`size-4 ${isDarkMode ? "text-white" : "text-primary"}`} aria-hidden="true" />
                 </div>
                 <span className="font-black">Champion 登录页</span>
               </div>
-
-              <button
-                type="button"
-                aria-label={isDarkMode ? "切换到浅色模式" : "切换到深色模式"}
-                onClick={() => setThemeOverride((value) => !(value ?? systemPrefersDark))}
-                className={`ml-auto flex size-10 items-center justify-center rounded-lg transition-colors ${
-                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-primary/10 text-primary hover:bg-primary/20"
-                }`}
-              >
-                {isDarkMode ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
-              </button>
             </div>
 
-            <div className="mb-10 text-center">
-              <h1 className={`mb-2 text-3xl font-black tracking-normal ${isDarkMode ? "text-white" : ""}`}>
+            <div className="mb-8 text-center sm:mb-10">
+              <h1 className={`mb-2 text-[clamp(2.5rem,12vw,3.75rem)] font-black leading-tight tracking-normal sm:text-3xl ${isDarkMode ? "text-white" : ""}`}>
                 {isAuthenticated ? "登录成功" : "欢迎回来"}
               </h1>
-              <p className={`text-sm ${isDarkMode ? "text-white/60" : "text-muted-foreground"}`}>
+              <p className={`text-base sm:text-sm ${isDarkMode ? "text-white/60" : "text-muted-foreground"}`}>
                 {isAuthenticated ? "状态已确认，欢迎回来。" : "Champion 安全入口已就绪。"}
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="password" className={`text-sm font-medium ${isDarkMode ? "text-white" : ""}`}>
+                <Label htmlFor="password" className={`text-base font-medium sm:text-sm ${isDarkMode ? "text-white" : ""}`}>
                   密码
                 </Label>
                 <div className="relative">
@@ -547,7 +552,7 @@ export default function Home() {
                     onChange={handlePasswordChange}
                     required
                     disabled={isAuthenticated}
-                    className={`h-12 border pr-11 ${
+                    className={`h-14 rounded-2xl border px-5 pr-12 text-base sm:h-12 sm:rounded-lg ${
                       isDarkMode
                         ? "border-white/20 bg-black text-white placeholder:text-white/40"
                         : "border-border/60 bg-background"
@@ -558,7 +563,7 @@ export default function Home() {
                     aria-label={showPassword ? "隐藏密码" : "显示密码"}
                     onClick={() => setShowPassword((value) => !value)}
                     disabled={isAuthenticated}
-                    className={`absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
+                    className={`absolute right-3 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-50 sm:size-8 ${
                       isDarkMode ? "text-white/60 hover:text-white" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -596,7 +601,7 @@ export default function Home() {
                     type="button"
                     size="lg"
                     onClick={handleLogout}
-                    className={`h-12 gap-2 text-base font-medium ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
+                    className={`h-14 gap-2 rounded-2xl text-base font-medium sm:h-12 sm:rounded-lg ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
                   >
                     <LogOut className="size-4" aria-hidden="true" />
                     退出登录
@@ -605,7 +610,7 @@ export default function Home() {
                   <Button
                     type="submit"
                     size="lg"
-                    className={`h-12 text-base font-medium ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
+                    className={`h-14 rounded-2xl text-base font-medium sm:h-12 sm:rounded-lg ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
                   >
                     登录
                   </Button>
@@ -613,11 +618,11 @@ export default function Home() {
               </div>
             </form>
 
-            <div className="mt-12 flex items-center justify-center gap-8 lg:hidden">
-              <div className="h-14 w-14 rounded-full bg-[#6C3FF5] opacity-80" />
-              <div className="h-10 w-10 rounded-lg bg-[#2D2D2D] opacity-80" />
-              <div className="h-12 w-12 rounded-full bg-[#FF9B6B] opacity-80" />
-              <div className="h-8 w-8 rounded-full bg-[#E8D754] opacity-80" />
+            <div className="mt-10 flex items-center justify-center gap-5 sm:mt-12 sm:gap-8">
+              <div className="h-12 w-12 rounded-full bg-[#6C3FF5] opacity-80 sm:h-14 sm:w-14" />
+              <div className="h-9 w-9 rounded-lg bg-[#2D2D2D] opacity-80 sm:h-10 sm:w-10" />
+              <div className="h-10 w-10 rounded-full bg-[#FF9B6B] opacity-80 sm:h-12 sm:w-12" />
+              <div className="h-7 w-7 rounded-full bg-[#E8D754] opacity-80 sm:h-8 sm:w-8" />
             </div>
           </div>
         </section>

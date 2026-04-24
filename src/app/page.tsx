@@ -1,652 +1,627 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import type { ChangeEvent, FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { CheckCircle2, Eye, EyeOff, LogOut, Moon, Sparkles, Sun } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Sparkles, Moon, Sun } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-
-interface PupilProps {
- size?: number;
- maxDistance?: number;
- pupilColor?: string;
- forceLookX?: number;
- forceLookY?: number;
-}
-
-const Pupil = ({ 
- size = 12, 
- maxDistance = 5,
- pupilColor = "black",
- forceLookX,
- forceLookY
-}: PupilProps) => {
- const [mouseX, setMouseX] = useState<number>(0);
- const [mouseY, setMouseY] = useState<number>(0);
- const pupilRef = useRef<HTMLDivElement>(null);
-
- useEffect(() => {
- const handleMouseMove = (e: MouseEvent) => {
- setMouseX(e.clientX);
- setMouseY(e.clientY);
- };
-
- window.addEventListener("mousemove", handleMouseMove);
-
- return () => {
- window.removeEventListener("mousemove", handleMouseMove);
- };
- }, []);
-
- const calculatePupilPosition = () => {
- if (!pupilRef.current) return { x: 0, y: 0 };
-
- // If forced look direction is provided, use that instead of mouse tracking
- if (forceLookX !== undefined && forceLookY !== undefined) {
- return { x: forceLookX, y: forceLookY };
- }
-
- const pupil = pupilRef.current.getBoundingClientRect();
- const pupilCenterX = pupil.left + pupil.width / 2;
- const pupilCenterY = pupil.top + pupil.height / 2;
-
- const deltaX = mouseX - pupilCenterX;
- const deltaY = mouseY - pupilCenterY;
- const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance);
-
- const angle = Math.atan2(deltaY, deltaX);
- const x = Math.cos(angle) * distance;
- const y = Math.sin(angle) * distance;
-
- return { x, y };
- };
-
- const pupilPosition = calculatePupilPosition();
-
- return (
- <div
- ref={pupilRef}
- className="rounded-full"
- style={{
- width: `${size}px`,
- height: `${size}px`,
- backgroundColor: pupilColor,
- transform: `translate(${pupilPosition.x}px, ${pupilPosition.y}px)`,
- transition: 'transform 0.1s ease-out',
- }}
- />
- );
+type Point = {
+  x: number;
+  y: number;
 };
 
-
-
-
-interface EyeBallProps {
- size?: number;
- pupilSize?: number;
- maxDistance?: number;
- eyeColor?: string;
- pupilColor?: string;
- isBlinking?: boolean;
- forceLookX?: number;
- forceLookY?: number;
-}
-
-const EyeBall = ({ 
- size = 48, 
- pupilSize = 16, 
- maxDistance = 10,
- eyeColor = "white",
- pupilColor = "black",
- isBlinking = false,
- forceLookX,
- forceLookY
-}: EyeBallProps) => {
- const [mouseX, setMouseX] = useState<number>(0);
- const [mouseY, setMouseY] = useState<number>(0);
- const eyeRef = useRef<HTMLDivElement>(null);
-
- useEffect(() => {
- const handleMouseMove = (e: MouseEvent) => {
- setMouseX(e.clientX);
- setMouseY(e.clientY);
- };
-
- window.addEventListener("mousemove", handleMouseMove);
-
- return () => {
- window.removeEventListener("mousemove", handleMouseMove);
- };
- }, []);
-
- const calculatePupilPosition = () => {
- if (!eyeRef.current) return { x: 0, y: 0 };
-
- // If forced look direction is provided, use that instead of mouse tracking
- if (forceLookX !== undefined && forceLookY !== undefined) {
- return { x: forceLookX, y: forceLookY };
- }
-
- const eye = eyeRef.current.getBoundingClientRect();
- const eyeCenterX = eye.left + eye.width / 2;
- const eyeCenterY = eye.top + eye.height / 2;
-
- const deltaX = mouseX - eyeCenterX;
- const deltaY = mouseY - eyeCenterY;
- const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance);
-
- const angle = Math.atan2(deltaY, deltaX);
- const x = Math.cos(angle) * distance;
- const y = Math.sin(angle) * distance;
-
- return { x, y };
- };
-
- const pupilPosition = calculatePupilPosition();
-
- return (
- <div
- ref={eyeRef}
- className="rounded-full flex items-center justify-center transition-all duration-150"
- style={{
- width: `${size}px`,
- height: isBlinking ? '2px' : `${size}px`,
- backgroundColor: eyeColor,
- overflow: 'hidden',
- }}
- >
- {!isBlinking && (
- <div
- className="rounded-full"
- style={{
- width: `${pupilSize}px`,
- height: `${pupilSize}px`,
- backgroundColor: pupilColor,
- transform: `translate(${pupilPosition.x}px, ${pupilPosition.y}px)`,
- transition: 'transform 0.1s ease-out',
- }}
- />
- )}
- </div>
- );
+type CharacterMotion = {
+  faceX: number;
+  faceY: number;
+  bodySkew: number;
 };
 
+type EyeBallProps = {
+  size: number;
+  pupilSize: number;
+  offset: Point;
+  isBlinking?: boolean;
+};
 
+type PupilProps = {
+  size: number;
+  offset: Point;
+  color?: string;
+};
 
+const DEFAULT_PASSWORD_ERROR = "密码不正确，请重试。";
+const STAGE_CENTER = { x: 275, y: 200 };
 
+function getLookOffset(mouse: Point, origin: Point, maxDistance: number): Point {
+  const deltaX = mouse.x - origin.x;
+  const deltaY = mouse.y - origin.y;
+  const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance);
+  const angle = Math.atan2(deltaY, deltaX);
 
-function LoginPage() {
- const router = useRouter()
- const [showPassword, setShowPassword] = useState(false);
- const [email, setEmail] = useState("");
- const [password, setPassword] = useState("");
- const [error, setError] = useState("");
- const [isLoading, setIsLoading] = useState(false);
- const [mouseX, setMouseX] = useState<number>(0);
- const [mouseY, setMouseY] = useState<number>(0);
- const [isPurpleBlinking, setIsPurpleBlinking] = useState(false);
- const [isBlackBlinking, setIsBlackBlinking] = useState(false);
- const [isTyping, setIsTyping] = useState(false);
- const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false);
- const [isPurplePeeking, setIsPurplePeeking] = useState(false);
- const [isDarkMode, setIsDarkMode] = useState(false);
- const [isAuthenticated, setIsAuthenticated] = useState(false);
-
- useEffect(() => {
-   const auth = document.cookie.includes('authenticated=');
-   setIsAuthenticated(auth);
-   if (auth) {
-     router.push('/write');
-   }
- }, [router]);
-
- const handleLogout = () => {
-   document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-   setIsAuthenticated(false);
- };
-
- // Detect system color scheme preference
- useEffect(() => {
- const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
- setIsDarkMode(mediaQuery.matches);
-
- const handleChange = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
- mediaQuery.addEventListener('change', handleChange);
- return () => mediaQuery.removeEventListener('change', handleChange);
- }, []);
-
- const purpleRef = useRef<HTMLDivElement>(null);
- const blackRef = useRef<HTMLDivElement>(null);
- const yellowRef = useRef<HTMLDivElement>(null);
- const orangeRef = useRef<HTMLDivElement>(null);
-
- useEffect(() => {
- const handleMouseMove = (e: MouseEvent) => {
- setMouseX(e.clientX);
- setMouseY(e.clientY);
- };
-
- window.addEventListener("mousemove", handleMouseMove);
- return () => window.removeEventListener("mousemove", handleMouseMove);
- }, []);
-
- // Blinking effect for purple character
- useEffect(() => {
- const getRandomBlinkInterval = () => Math.random() * 4000 + 3000; // Random between 3-7 seconds
-
- const scheduleBlink = () => {
- const blinkTimeout = setTimeout(() => {
- setIsPurpleBlinking(true);
- setTimeout(() => {
- setIsPurpleBlinking(false);
- scheduleBlink();
- }, 150); // Blink duration 150ms
- }, getRandomBlinkInterval());
-
- return blinkTimeout;
- };
-
- const timeout = scheduleBlink();
- return () => clearTimeout(timeout);
- }, []);
-
- // Blinking effect for black character
- useEffect(() => {
- const getRandomBlinkInterval = () => Math.random() * 4000 + 3000; // Random between 3-7 seconds
-
- const scheduleBlink = () => {
- const blinkTimeout = setTimeout(() => {
- setIsBlackBlinking(true);
- setTimeout(() => {
- setIsBlackBlinking(false);
- scheduleBlink();
- }, 150); // Blink duration 150ms
- }, getRandomBlinkInterval());
-
- return blinkTimeout;
- };
-
- const timeout = scheduleBlink();
- return () => clearTimeout(timeout);
- }, []);
-
- // Looking at each other animation when typing starts
- useEffect(() => {
- if (isTyping) {
- setIsLookingAtEachOther(true);
- const timer = setTimeout(() => {
- setIsLookingAtEachOther(false);
- }, 800); // Look at each other for 1.5 seconds, then back to tracking mouse
- return () => clearTimeout(timer);
- } else {
- setIsLookingAtEachOther(false);
- }
- }, [isTyping]);
-
- // Purple sneaky peeking animation when typing password and it's visible
- useEffect(() => {
- if (password.length > 0 && showPassword) {
- const schedulePeek = () => {
- const peekInterval = setTimeout(() => {
- setIsPurplePeeking(true);
- setTimeout(() => {
- setIsPurplePeeking(false);
- }, 800); // Peek for 800ms
- }, Math.random() * 3000 + 2000); // Random peek every 2-5 seconds
- return peekInterval;
- };
-
- const firstPeek = schedulePeek();
- return () => clearTimeout(firstPeek);
- } else {
- setIsPurplePeeking(false);
- }
- }, [password, showPassword, isPurplePeeking]);
-
- const calculatePosition = (ref: React.RefObject<HTMLDivElement | null>) => {
- if (!ref.current) return { faceX: 0, faceY: 0, bodyRotation: 0 };
-
- const rect = ref.current.getBoundingClientRect();
- const centerX = rect.left + rect.width / 2;
- const centerY = rect.top + rect.height / 3; // Focus on head area
-
- const deltaX = mouseX - centerX;
- const deltaY = mouseY - centerY;
-
- // Face movement (limited range)
- const faceX = Math.max(-15, Math.min(15, deltaX / 20));
- const faceY = Math.max(-10, Math.min(10, deltaY / 30));
-
- // Body lean (skew for lean while keeping bottom straight) - negative to lean towards mouse
- const bodySkew = Math.max(-6, Math.min(6, -deltaX / 120));
-
- return { faceX, faceY, bodySkew };
- };
-
- const purplePos = calculatePosition(purpleRef);
- const blackPos = calculatePosition(blackRef);
- const yellowPos = calculatePosition(yellowRef);
- const orangePos = calculatePosition(orangeRef);
-
- const handleSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (password === process.env.NEXT_PUBLIC_PASSWORD) {
- document.cookie = 'authenticated=true; path=/';
- window.location.href = '/write';
- } else {
- setError('Incorrect password');
- }
- };
-
- return (
- <div className="min-h-screen grid lg:grid-cols-2">
- {/* Left Content Section */}
- <div className={`relative hidden lg:flex flex-col justify-between ${isDarkMode ? 'bg-gray-100' : 'bg-gradient-to-br from-primary/90 via-primary to-primary/80'} p-12 ${isDarkMode ? 'text-black' : 'text-primary-foreground'}`}>
- <div className="relative z-20">
- <div className="flex items-center gap-2 text-lg font-semibold">
- <div className={`size-8 rounded-lg backdrop-blur-sm flex items-center justify-center ${isDarkMode ? 'bg-black/10' : 'bg-primary-foreground/10'}`}>
- <Sparkles className={`size-4 ${isDarkMode ? 'text-black' : ''}`} />
- </div>
- <span className={`font-black ${isDarkMode ? 'text-gray-900' : ''}`}>Champion&apos;s Blog</span>
- </div>
- </div>
-
- <div className="relative z-20 flex items-end justify-center h-[500px]">
- {/* Cartoon Characters */}
- <div className="relative" style={{ width: '550px', height: '400px' }}>
- {/* Purple tall rectangle character - Back layer */}
- <div 
- ref={purpleRef}
- className="absolute bottom-0 transition-all duration-700 ease-in-out"
- style={{
- left: '70px',
- width: '180px',
- height: (isTyping || (password.length > 0 && !showPassword)) ? '440px' : '400px',
- backgroundColor: '#6C3FF5',
- borderRadius: '10px 10px 0 0',
- zIndex: 1,
- transform: (password.length > 0 && showPassword)
- ? `skewX(0deg)`
- : (isTyping || (password.length > 0 && !showPassword))
- ? `skewX(${(purplePos.bodySkew || 0) - 12}deg) translateX(40px)` 
- : `skewX(${purplePos.bodySkew || 0}deg)`,
- transformOrigin: 'bottom center',
- }}
- >
- {/* Eyes */}
- <div 
- className="absolute flex gap-8 transition-all duration-700 ease-in-out"
- style={{
- left: (password.length > 0 && showPassword) ? `${20}px` : isLookingAtEachOther ? `${55}px` : `${45 + purplePos.faceX}px`,
- top: (password.length > 0 && showPassword) ? `${35}px` : isLookingAtEachOther ? `${65}px` : `${40 + purplePos.faceY}px`,
- }}
- >
- <EyeBall 
- size={18} 
- pupilSize={7} 
- maxDistance={5} 
- eyeColor="white" 
- pupilColor="#2D2D2D" 
- isBlinking={isPurpleBlinking}
- forceLookX={(password.length > 0 && showPassword) ? (isPurplePeeking ? 4 : -4) : isLookingAtEachOther ? 3 : undefined}
- forceLookY={(password.length > 0 && showPassword) ? (isPurplePeeking ? 5 : -4) : isLookingAtEachOther ? 4 : undefined}
- />
- <EyeBall 
- size={18} 
- pupilSize={7} 
- maxDistance={5} 
- eyeColor="white" 
- pupilColor="#2D2D2D" 
- isBlinking={isPurpleBlinking}
- forceLookX={(password.length > 0 && showPassword) ? (isPurplePeeking ? 4 : -4) : isLookingAtEachOther ? 3 : undefined}
- forceLookY={(password.length > 0 && showPassword) ? (isPurplePeeking ? 5 : -4) : isLookingAtEachOther ? 4 : undefined}
- />
- </div>
- </div>
-
- {/* Black tall rectangle character - Middle layer */}
- <div 
- ref={blackRef}
- className="absolute bottom-0 transition-all duration-700 ease-in-out"
- style={{
- left: '240px',
- width: '120px',
- height: '310px',
- backgroundColor: '#2D2D2D',
- borderRadius: '8px 8px 0 0',
- zIndex: 2,
- transform: (password.length > 0 && showPassword)
- ? `skewX(0deg)`
- : isLookingAtEachOther
- ? `skewX(${(blackPos.bodySkew || 0) * 1.5 + 10}deg) translateX(20px)`
- : (isTyping || (password.length > 0 && !showPassword))
- ? `skewX(${(blackPos.bodySkew || 0) * 1.5}deg)` 
- : `skewX(${blackPos.bodySkew || 0}deg)`,
- transformOrigin: 'bottom center',
- }}
- >
- {/* Eyes */}
- <div 
- className="absolute flex gap-6 transition-all duration-700 ease-in-out"
- style={{
- left: (password.length > 0 && showPassword) ? `${10}px` : isLookingAtEachOther ? `${32}px` : `${26 + blackPos.faceX}px`,
- top: (password.length > 0 && showPassword) ? `${28}px` : isLookingAtEachOther ? `${12}px` : `${32 + blackPos.faceY}px`,
- }}
- >
- <EyeBall 
- size={16} 
- pupilSize={6} 
- maxDistance={4} 
- eyeColor="white" 
- pupilColor="#2D2D2D" 
- isBlinking={isBlackBlinking}
- forceLookX={(password.length > 0 && showPassword) ? -4 : isLookingAtEachOther ? 0 : undefined}
- forceLookY={(password.length > 0 && showPassword) ? -4 : isLookingAtEachOther ? -4 : undefined}
- />
- <EyeBall 
- size={16} 
- pupilSize={6} 
- maxDistance={4} 
- eyeColor="white" 
- pupilColor="#2D2D2D" 
- isBlinking={isBlackBlinking}
- forceLookX={(password.length > 0 && showPassword) ? -4 : isLookingAtEachOther ? 0 : undefined}
- forceLookY={(password.length > 0 && showPassword) ? -4 : isLookingAtEachOther ? -4 : undefined}
- />
- </div>
- </div>
-
- {/* Orange semi-circle character - Front left */}
- <div 
- ref={orangeRef}
- className="absolute bottom-0 transition-all duration-700 ease-in-out"
- style={{
- left: '0px',
- width: '240px',
- height: '200px',
- zIndex: 3,
- backgroundColor: '#FF9B6B',
- borderRadius: '120px 120px 0 0',
- transform: (password.length > 0 && showPassword) ? `skewX(0deg)` : `skewX(${orangePos.bodySkew || 0}deg)`,
- transformOrigin: 'bottom center',
- }}
- >
- {/* Eyes - just pupils, no white */}
- <div 
- className="absolute flex gap-8 transition-all duration-200 ease-out"
- style={{
- left: (password.length > 0 && showPassword) ? `${50}px` : `${82 + (orangePos.faceX || 0)}px`,
- top: (password.length > 0 && showPassword) ? `${85}px` : `${90 + (orangePos.faceY || 0)}px`,
- }}
- >
- <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
- <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
- </div>
- </div>
-
- {/* Yellow tall rectangle character - Front right */}
- <div 
- ref={yellowRef}
- className="absolute bottom-0 transition-all duration-700 ease-in-out"
- style={{
- left: '310px',
- width: '140px',
- height: '230px',
- backgroundColor: '#E8D754',
- borderRadius: '70px 70px 0 0',
- zIndex: 4,
- transform: (password.length > 0 && showPassword) ? `skewX(0deg)` : `skewX(${yellowPos.bodySkew || 0}deg)`,
- transformOrigin: 'bottom center',
- }}
- >
- {/* Eyes - just pupils, no white */}
- <div 
- className="absolute flex gap-6 transition-all duration-200 ease-out"
- style={{
- left: (password.length > 0 && showPassword) ? `${20}px` : `${52 + (yellowPos.faceX || 0)}px`,
- top: (password.length > 0 && showPassword) ? `${35}px` : `${40 + (yellowPos.faceY || 0)}px`,
- }}
- >
- <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
- <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={(password.length > 0 && showPassword) ? -5 : undefined} forceLookY={(password.length > 0 && showPassword) ? -4 : undefined} />
- </div>
- {/* Horizontal line for mouth */}
- <div 
- className="absolute w-20 h-[4px] bg-[#2D2D2D] rounded-full transition-all duration-200 ease-out"
- style={{
- left: (password.length > 0 && showPassword) ? `${10}px` : `${40 + (yellowPos.faceX || 0)}px`,
- top: (password.length > 0 && showPassword) ? `${88}px` : `${88 + (yellowPos.faceY || 0)}px`,
- }}
- />
- </div>
- </div>
- </div>
-
- <div className={`relative z-20 flex items-center gap-8 text-sm ${isDarkMode ? 'text-gray-800/60' : 'text-primary-foreground/60'}`}>
- <a href="#" className={`hover:underline transition-colors ${isDarkMode ? 'text-gray-800' : 'hover:text-primary-foreground'}`}>
- Privacy Policy
- </a>
- <a href="#" className={`hover:underline transition-colors ${isDarkMode ? 'text-gray-800' : 'hover:text-primary-foreground'}`}>
- Terms of Service
- </a>
- <a href="#" className={`hover:underline transition-colors ${isDarkMode ? 'text-gray-800' : 'hover:text-primary-foreground'}`}>
- Contact
- </a>
- </div>
-
- {/* Theme Toggle Button - Mobile */}
- {/* Decorative elements */}
- <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
- <div className="absolute top-1/4 right-1/4 size-64 bg-primary-foreground/10 rounded-full blur-3xl" />
- <div className="absolute bottom-1/4 left-1/4 size-96 bg-primary-foreground/5 rounded-full blur-3xl" />
- </div>
-
- {/* Right Login Section */}
- <div className={`flex items-center justify-center p-8 ${isDarkMode ? 'bg-black' : 'bg-background'}`}>
- <div className="w-full max-w-[420px]">
- {/* Theme Toggle Button & Auth - Top Right */}
- <div className="absolute top-4 right-4 flex items-center gap-2">
- {isAuthenticated ? (
- <>
- <span className={`text-sm px-3 py-1.5 rounded-lg ${isDarkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'}`}>已登录</span>
- <button
- onClick={handleLogout}
- className={`p-2 rounded-lg backdrop-blur-sm transition-colors ${isDarkMode ? 'bg-gray-700/50 hover:bg-gray-700 text-white' : 'bg-primary/10 hover:bg-primary/20 text-primary'}`}
- >
- 退出
- </button>
- </>
- ) : (
- <button
- onClick={() => setIsDarkMode(!isDarkMode)}
- className={`p-2 rounded-lg backdrop-blur-sm transition-colors ${isDarkMode ? 'bg-gray-700/50 hover:bg-gray-700 text-white' : 'bg-primary/10 hover:bg-primary/20 text-primary'}`}
- >
- {isDarkMode ? <Sun className="size-5" /> : <Moon className="size-5" />}
- </button>
- )}
- </div>
- {/* Mobile Logo */}
- <div className="lg:hidden flex items-center justify-center gap-2 text-lg font-semibold mb-12">
- <div className={`size-8 rounded-lg flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-primary/10'}`}>
- <Sparkles className={`size-4 ${isDarkMode ? 'text-white' : 'text-primary'}`} />
- </div>
- <span className="font-black">Champion&apos;s Blog</span>
- </div>
-
- {/* Header */}
- <div className="text-center mb-10">
- <h1 className={`text-3xl font-black tracking-tight mb-2 ${isDarkMode ? 'text-white' : ''}`}>
- {isAuthenticated ? 'Welcome back!' : 'Welcome!'}
- </h1>
- <p className={`text-sm ${isDarkMode ? 'text-white/60' : 'text-muted-foreground'}`}>
- {isAuthenticated ? 'You are logged in' : 'Enter password to continue'}
- </p>
- </div>
-
- {/* Login Form */}
- <form onSubmit={handleSubmit} className="space-y-5">
- <div className="space-y-2">
- <Label htmlFor="password" className={`text-sm font-medium ${isDarkMode ? 'text-white' : ''}`}>Password</Label>
- <div className="relative">
- <Input
- id="password"
- type={showPassword ? "text" : "password"}
- placeholder="••••••••"
- value={password}
- onChange={(e) => setPassword(e.target.value)}
- required
- className={`h-12 pr-10 border ${isDarkMode ? 'bg-black border-white/20 text-white placeholder:text-white/40' : 'bg-background border-border/60'} focus:border-primary`}
- />
- <button
- type="button"
- onClick={() => setShowPassword(!showPassword)}
- className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDarkMode ? 'text-white/60 hover:text-white' : 'text-muted-foreground hover:text-foreground'}`}
- >
- {showPassword ? (
- <EyeOff className="size-5" />
- ) : (
- <Eye className="size-5" />
- )}
- </button>
- </div>
- </div>
-
- {error && (
- <div className={`p-3 text-sm border rounded-lg ${isDarkMode ? 'text-red-400 bg-red-400/10 border-red-400/30' : 'text-red-600 bg-red-50 border-red-200'}`}>
- {error}
- </div>
- )}
-
- <Button 
- type="submit" 
- className={`w-full h-12 text-base font-medium ${isDarkMode ? 'bg-white text-black hover:bg-white/90' : ''}`} 
- size="lg" 
- disabled={isLoading}
- >
- {isLoading ? "Signing in..." : "Log in"}
- </Button>
- </form>
-
- {/* Cute cartoon decoration */}
- <div className="flex justify-center items-center gap-8 mt-12">
- <div className="w-14 h-14 rounded-full bg-[#6C3FF5] opacity-80" />
- <div className="w-10 h-10 rounded-lg bg-[#2D2D2D] opacity-80" />
- <div className="w-12 h-12 rounded-full bg-[#FF9B6B] opacity-80" />
- <div className="w-8 h-8 rounded-full bg-[#E8D754] opacity-80" />
- </div>
- </div>
- </div>
- </div>
- );
+  return {
+    x: Math.cos(angle) * distance,
+    y: Math.sin(angle) * distance,
+  };
 }
 
+function getCharacterMotion(mouse: Point, origin: Point): CharacterMotion {
+  const deltaX = mouse.x - origin.x;
+  const deltaY = mouse.y - origin.y;
 
+  return {
+    faceX: Math.max(-15, Math.min(15, deltaX / 20)),
+    faceY: Math.max(-10, Math.min(10, deltaY / 30)),
+    bodySkew: Math.max(-6, Math.min(6, -deltaX / 120)),
+  };
+}
+
+function useBlinking() {
+  const [isBlinking, setIsBlinking] = useState(false);
+
+  useEffect(() => {
+    let blinkTimeout: number | undefined;
+    let resetTimeout: number | undefined;
+
+    const scheduleBlink = () => {
+      blinkTimeout = window.setTimeout(
+        () => {
+          setIsBlinking(true);
+          resetTimeout = window.setTimeout(() => {
+            setIsBlinking(false);
+            scheduleBlink();
+          }, 150);
+        },
+        Math.random() * 4000 + 3000
+      );
+    };
+
+    scheduleBlink();
+
+    return () => {
+      if (blinkTimeout) {
+        window.clearTimeout(blinkTimeout);
+      }
+
+      if (resetTimeout) {
+        window.clearTimeout(resetTimeout);
+      }
+    };
+  }, []);
+
+  return isBlinking;
+}
+
+function subscribeToColorScheme(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  mediaQuery.addEventListener("change", onStoreChange);
+
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
+}
+
+function getColorSchemeSnapshot() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function getServerColorSchemeSnapshot() {
+  return false;
+}
+
+function EyeBall({
+  size,
+  pupilSize,
+  offset,
+  isBlinking = false,
+}: EyeBallProps) {
+  return (
+    <div
+      className="flex items-center justify-center overflow-hidden rounded-full transition-all duration-150"
+      style={{
+        width: `${size}px`,
+        height: isBlinking ? "2px" : `${size}px`,
+        backgroundColor: "white",
+      }}
+    >
+      {!isBlinking ? (
+        <div
+          className="rounded-full bg-[#2D2D2D] transition-transform duration-100 ease-out"
+          style={{
+            width: `${pupilSize}px`,
+            height: `${pupilSize}px`,
+            transform: `translate(${offset.x}px, ${offset.y}px)`,
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Pupil({
+  size,
+  offset,
+  color = "#2D2D2D",
+}: PupilProps) {
+  return (
+    <div
+      className="rounded-full transition-transform duration-100 ease-out"
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        backgroundColor: color,
+        transform: `translate(${offset.x}px, ${offset.y}px)`,
+      }}
+    />
+  );
+}
 
 export default function Home() {
- return <LoginPage />
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [stageMouse, setStageMouse] = useState<Point>(STAGE_CENTER);
+  const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false);
+  const [isPurplePeeking, setIsPurplePeeking] = useState(false);
+  const systemPrefersDark = useSyncExternalStore(
+    subscribeToColorScheme,
+    getColorSchemeSnapshot,
+    getServerColorSchemeSnapshot
+  );
+  const [themeOverride, setThemeOverride] = useState<boolean | null>(null);
+  const isDarkMode = themeOverride ?? systemPrefersDark;
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+
+  const isPurpleBlinking = useBlinking();
+  const isBlackBlinking = useBlinking();
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const rect = stageRef.current?.getBoundingClientRect();
+
+      if (!rect) {
+        return;
+      }
+
+      setStageMouse({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    if (!password || !showPassword) {
+      return;
+    }
+
+    let peekTimeout: number | undefined;
+    let resetTimeout: number | undefined;
+
+    const schedulePeek = () => {
+      peekTimeout = window.setTimeout(
+        () => {
+          setIsPurplePeeking(true);
+          resetTimeout = window.setTimeout(() => {
+            setIsPurplePeeking(false);
+            schedulePeek();
+          }, 800);
+        },
+        Math.random() * 3000 + 2000
+      );
+    };
+
+    schedulePeek();
+
+    return () => {
+      if (peekTimeout) {
+        window.clearTimeout(peekTimeout);
+      }
+
+      if (resetTimeout) {
+        window.clearTimeout(resetTimeout);
+      }
+    };
+  }, [password, showPassword]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const hasPassword = password.length > 0;
+  const charactersAreGuardingPassword = hasPassword && !showPassword;
+  const charactersArePeekingPassword = hasPassword && showPassword;
+  const purpleMotion = getCharacterMotion(stageMouse, { x: 160, y: 120 });
+  const blackMotion = getCharacterMotion(stageMouse, { x: 300, y: 190 });
+  const yellowMotion = getCharacterMotion(stageMouse, { x: 380, y: 245 });
+  const orangeMotion = getCharacterMotion(stageMouse, { x: 120, y: 270 });
+  const purpleEyeOffset = getLookOffset(stageMouse, { x: 165, y: 60 }, 5);
+  const blackEyeOffset = getLookOffset(stageMouse, { x: 300, y: 120 }, 4);
+  const orangeEyeOffset = getLookOffset(stageMouse, { x: 120, y: 285 }, 5);
+  const yellowEyeOffset = getLookOffset(stageMouse, { x: 380, y: 220 }, 5);
+  const purpleLook = charactersArePeekingPassword
+    ? { x: isPurplePeeking ? 4 : -4, y: isPurplePeeking ? 5 : -4 }
+    : isLookingAtEachOther
+      ? { x: 3, y: 4 }
+      : purpleEyeOffset;
+  const blackLook = charactersArePeekingPassword
+    ? { x: -4, y: -4 }
+    : isLookingAtEachOther
+      ? { x: 0, y: -4 }
+      : blackEyeOffset;
+  const orangeLook = charactersArePeekingPassword ? { x: -5, y: -4 } : orangeEyeOffset;
+  const yellowLook = charactersArePeekingPassword ? { x: -5, y: -4 } : yellowEyeOffset;
+
+  const handlePasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setPassword(event.target.value);
+    setError("");
+    setIsAuthenticated(false);
+    setIsLookingAtEachOther(true);
+
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = window.setTimeout(() => {
+      setIsLookingAtEachOther(false);
+    }, 800);
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!process.env.NEXT_PUBLIC_PASSWORD) {
+      setIsAuthenticated(false);
+      setError("请先配置 NEXT_PUBLIC_PASSWORD。");
+      return;
+    }
+
+    if (password === process.env.NEXT_PUBLIC_PASSWORD) {
+      setError("");
+      setIsAuthenticated(true);
+      return;
+    }
+
+    setIsAuthenticated(false);
+    setError(DEFAULT_PASSWORD_ERROR);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setPassword("");
+    setError("");
+  };
+
+  return (
+    <main className={`min-h-screen ${isDarkMode ? "bg-black text-white" : "bg-background text-foreground"}`}>
+      <div className="grid min-h-screen lg:grid-cols-2">
+        <section
+          className={`relative hidden flex-col justify-between overflow-hidden p-12 lg:flex ${
+            isDarkMode
+              ? "bg-gray-100 text-gray-950"
+              : "bg-gradient-to-br from-primary/90 via-primary to-primary/80 text-primary-foreground"
+          }`}
+        >
+          <div className="relative z-20 flex items-center gap-2 text-lg font-semibold">
+            <div
+              className={`flex size-8 items-center justify-center rounded-lg backdrop-blur-sm ${
+                isDarkMode ? "bg-black/10" : "bg-primary-foreground/10"
+              }`}
+            >
+              <Sparkles className="size-4" aria-hidden="true" />
+            </div>
+            <span className="font-black">Champion 登录页</span>
+          </div>
+
+          <div className="relative z-20 flex h-[500px] items-end justify-center">
+            <div ref={stageRef} className="relative h-[400px] w-[550px]">
+              <div
+                className="absolute bottom-0 transition-all duration-700 ease-in-out"
+                style={{
+                  left: "70px",
+                  width: "180px",
+                  height: charactersAreGuardingPassword ? "440px" : "400px",
+                  backgroundColor: "#6C3FF5",
+                  borderRadius: "10px 10px 0 0",
+                  zIndex: 1,
+                  transform: charactersArePeekingPassword
+                    ? "skewX(0deg)"
+                    : charactersAreGuardingPassword
+                      ? `skewX(${purpleMotion.bodySkew - 12}deg) translateX(40px)`
+                      : `skewX(${purpleMotion.bodySkew}deg)`,
+                  transformOrigin: "bottom center",
+                }}
+              >
+                <div
+                  className="absolute flex gap-8 transition-all duration-700 ease-in-out"
+                  style={{
+                    left: charactersArePeekingPassword
+                      ? "20px"
+                      : isLookingAtEachOther
+                        ? "55px"
+                        : `${45 + purpleMotion.faceX}px`,
+                    top: charactersArePeekingPassword
+                      ? "35px"
+                      : isLookingAtEachOther
+                        ? "65px"
+                        : `${40 + purpleMotion.faceY}px`,
+                  }}
+                >
+                  <EyeBall
+                    size={18}
+                    pupilSize={7}
+                    offset={purpleLook}
+                    isBlinking={isPurpleBlinking}
+                  />
+                  <EyeBall
+                    size={18}
+                    pupilSize={7}
+                    offset={purpleLook}
+                    isBlinking={isPurpleBlinking}
+                  />
+                </div>
+              </div>
+
+              <div
+                className="absolute bottom-0 transition-all duration-700 ease-in-out"
+                style={{
+                  left: "240px",
+                  width: "120px",
+                  height: "310px",
+                  backgroundColor: "#2D2D2D",
+                  borderRadius: "8px 8px 0 0",
+                  zIndex: 2,
+                  transform: charactersArePeekingPassword
+                    ? "skewX(0deg)"
+                    : isLookingAtEachOther
+                      ? `skewX(${blackMotion.bodySkew * 1.5 + 10}deg) translateX(20px)`
+                      : charactersAreGuardingPassword
+                        ? `skewX(${blackMotion.bodySkew * 1.5}deg)`
+                        : `skewX(${blackMotion.bodySkew}deg)`,
+                  transformOrigin: "bottom center",
+                }}
+              >
+                <div
+                  className="absolute flex gap-6 transition-all duration-700 ease-in-out"
+                  style={{
+                    left: charactersArePeekingPassword
+                      ? "10px"
+                      : isLookingAtEachOther
+                        ? "32px"
+                        : `${26 + blackMotion.faceX}px`,
+                    top: charactersArePeekingPassword
+                      ? "28px"
+                      : isLookingAtEachOther
+                        ? "12px"
+                        : `${32 + blackMotion.faceY}px`,
+                  }}
+                >
+                  <EyeBall
+                    size={16}
+                    pupilSize={6}
+                    offset={blackLook}
+                    isBlinking={isBlackBlinking}
+                  />
+                  <EyeBall
+                    size={16}
+                    pupilSize={6}
+                    offset={blackLook}
+                    isBlinking={isBlackBlinking}
+                  />
+                </div>
+              </div>
+
+              <div
+                className="absolute bottom-0 transition-all duration-700 ease-in-out"
+                style={{
+                  left: "0px",
+                  width: "240px",
+                  height: "200px",
+                  zIndex: 3,
+                  backgroundColor: "#FF9B6B",
+                  borderRadius: "120px 120px 0 0",
+                  transform: charactersArePeekingPassword ? "skewX(0deg)" : `skewX(${orangeMotion.bodySkew}deg)`,
+                  transformOrigin: "bottom center",
+                }}
+              >
+                <div
+                  className="absolute flex gap-8 transition-all duration-200 ease-out"
+                  style={{
+                    left: charactersArePeekingPassword ? "50px" : `${82 + orangeMotion.faceX}px`,
+                    top: charactersArePeekingPassword ? "85px" : `${90 + orangeMotion.faceY}px`,
+                  }}
+                >
+                  <Pupil
+                    size={12}
+                    offset={orangeLook}
+                  />
+                  <Pupil
+                    size={12}
+                    offset={orangeLook}
+                  />
+                </div>
+              </div>
+
+              <div
+                className="absolute bottom-0 transition-all duration-700 ease-in-out"
+                style={{
+                  left: "310px",
+                  width: "140px",
+                  height: "230px",
+                  backgroundColor: "#E8D754",
+                  borderRadius: "70px 70px 0 0",
+                  zIndex: 4,
+                  transform: charactersArePeekingPassword ? "skewX(0deg)" : `skewX(${yellowMotion.bodySkew}deg)`,
+                  transformOrigin: "bottom center",
+                }}
+              >
+                <div
+                  className="absolute flex gap-6 transition-all duration-200 ease-out"
+                  style={{
+                    left: charactersArePeekingPassword ? "20px" : `${52 + yellowMotion.faceX}px`,
+                    top: charactersArePeekingPassword ? "35px" : `${40 + yellowMotion.faceY}px`,
+                  }}
+                >
+                  <Pupil
+                    size={12}
+                    offset={yellowLook}
+                  />
+                  <Pupil
+                    size={12}
+                    offset={yellowLook}
+                  />
+                </div>
+                <div
+                  className="absolute h-[4px] w-20 rounded-full bg-[#2D2D2D] transition-all duration-200 ease-out"
+                  style={{
+                    left: charactersArePeekingPassword ? "10px" : `${40 + yellowMotion.faceX}px`,
+                    top: charactersArePeekingPassword ? "88px" : `${88 + yellowMotion.faceY}px`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <p className={`relative z-20 text-sm ${isDarkMode ? "text-gray-700" : "text-primary-foreground/70"}`}>
+            Champion 安全入口
+          </p>
+        </section>
+
+        <section className={`flex min-h-screen items-center justify-center p-8 ${isDarkMode ? "bg-black" : "bg-background"}`}>
+          <div className="w-full max-w-[420px]">
+            <div className="mb-12 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-lg font-semibold lg:hidden">
+                <div className={`flex size-8 items-center justify-center rounded-lg ${isDarkMode ? "bg-white/10" : "bg-primary/10"}`}>
+                  <Sparkles className={`size-4 ${isDarkMode ? "text-white" : "text-primary"}`} aria-hidden="true" />
+                </div>
+                <span className="font-black">Champion 登录页</span>
+              </div>
+
+              <button
+                type="button"
+                aria-label={isDarkMode ? "切换到浅色模式" : "切换到深色模式"}
+                onClick={() => setThemeOverride((value) => !(value ?? systemPrefersDark))}
+                className={`ml-auto flex size-10 items-center justify-center rounded-lg transition-colors ${
+                  isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-primary/10 text-primary hover:bg-primary/20"
+                }`}
+              >
+                {isDarkMode ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
+              </button>
+            </div>
+
+            <div className="mb-10 text-center">
+              <h1 className={`mb-2 text-3xl font-black tracking-normal ${isDarkMode ? "text-white" : ""}`}>
+                {isAuthenticated ? "登录成功" : "欢迎回来"}
+              </h1>
+              <p className={`text-sm ${isDarkMode ? "text-white/60" : "text-muted-foreground"}`}>
+                {isAuthenticated ? "状态已确认，欢迎回来。" : "Champion 安全入口已就绪。"}
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="password" className={`text-sm font-medium ${isDarkMode ? "text-white" : ""}`}>
+                  密码
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="请输入密码"
+                    value={password}
+                    onChange={handlePasswordChange}
+                    required
+                    disabled={isAuthenticated}
+                    className={`h-12 border pr-11 ${
+                      isDarkMode
+                        ? "border-white/20 bg-black text-white placeholder:text-white/40"
+                        : "border-border/60 bg-background"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                    onClick={() => setShowPassword((value) => !value)}
+                    disabled={isAuthenticated}
+                    className={`absolute right-3 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
+                      isDarkMode ? "text-white/60 hover:text-white" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {showPassword ? <EyeOff className="size-5" aria-hidden="true" /> : <Eye className="size-5" aria-hidden="true" />}
+                  </button>
+                </div>
+              </div>
+
+              {error ? (
+                <div
+                  className={`rounded-lg border p-3 text-sm ${
+                    isDarkMode ? "border-red-400/30 bg-red-400/10 text-red-300" : "border-red-200 bg-red-50 text-red-600"
+                  }`}
+                >
+                  {error}
+                </div>
+              ) : null}
+
+              {isAuthenticated ? (
+                <div
+                  className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${
+                    isDarkMode
+                      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  <span>当前登录状态有效。</span>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3">
+                {isAuthenticated ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={handleLogout}
+                    className={`h-12 gap-2 text-base font-medium ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
+                  >
+                    <LogOut className="size-4" aria-hidden="true" />
+                    退出登录
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className={`h-12 text-base font-medium ${isDarkMode ? "bg-white text-black hover:bg-white/90" : ""}`}
+                  >
+                    登录
+                  </Button>
+                )}
+              </div>
+            </form>
+
+            <div className="mt-12 flex items-center justify-center gap-8 lg:hidden">
+              <div className="h-14 w-14 rounded-full bg-[#6C3FF5] opacity-80" />
+              <div className="h-10 w-10 rounded-lg bg-[#2D2D2D] opacity-80" />
+              <div className="h-12 w-12 rounded-full bg-[#FF9B6B] opacity-80" />
+              <div className="h-8 w-8 rounded-full bg-[#E8D754] opacity-80" />
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }
